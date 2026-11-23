@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Optional release tag to publish/backfill (e.g. v1.0.0)'
+        required: false
+        type: string
   pull_request:
 
 permissions:
@@ -22,19 +30,74 @@ jobs:
       - run: go vet ./...
       - run: go test -race -v ./...
 
-  release:
+  publish:
     name: Build Static Binaries & Multi-Arch Container
     needs: test
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23'
-      - name: Cross-compile zero-CGO static binaries
+
+      - name: Determine target version and container tags
+        id: meta
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.release_tag }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          REL_TAG=""
+          if [ -n "$INPUT_TAG" ]; then
+            REL_TAG="$INPUT_TAG"
+          elif [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+            REL_TAG="${GITHUB_REF_NAME}"
+          elif echo "${GITHUB_REF}" | grep -q '^refs/tags/v'; then
+            REL_TAG="${GITHUB_REF_NAME}"
+          else
+            # On main push: if latest GitHub Release exists without checksums.txt attached yet, backfill it automatically
+            LATEST_REL=$(gh release view --json tagName,assets --jq 'select(([.assets[].name] | index("checksums.txt")) == null) | .tagName' 2>/dev/null || true)
+            if [ -n "$LATEST_REL" ]; then
+              REL_TAG="$LATEST_REL"
+            fi
+          fi
+
+          VERSION="1.0.0"
+          TAGS="ghcr.io/otelping/otelping-probe:latest"
+          if [ -n "$REL_TAG" ]; then
+            VERSION="${REL_TAG#v}"
+            TAGS="${TAGS},ghcr.io/otelping/otelping-probe:${REL_TAG}"
+          fi
+          echo "rel_tag=${REL_TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "docker_tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push multi-arch GHCR container
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.docker_tags }}
+
+      - name: Cross-compile static binaries & attach to GitHub Release
+        if: steps.meta.outputs.rel_tag != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REL_TAG: ${{ steps.meta.outputs.rel_tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
           mkdir -p dist
           for pair in "linux amd64" "linux arm64" "darwin arm64" "darwin amd64" "windows amd64"; do
             set -- $pair
@@ -45,23 +108,8 @@ jobs:
             CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${BIN}" ./cmd/otelping-probe
           done
           (cd dist && sha256sum * > checksums.txt)
-      - name: Publish GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          platforms: linux/amd64,linux/arm64
-          build-args: VERSION=${{ github.ref_name }}
-          tags: |
-            ghcr.io/otelping/otelping-probe:${{ github.ref_name }}
-            ghcr.io/otelping/otelping-probe:latest
+          if gh release view "$REL_TAG" >/dev/null 2>&1; then
+            gh release upload "$REL_TAG" dist/* --clobber
+          else
+            gh release create "$REL_TAG" dist/* --generate-notes
+          fi

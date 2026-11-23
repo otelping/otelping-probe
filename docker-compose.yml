@@ -1,0 +1,18 @@
+services:
+  otelping-probe:
+    build: .
+    image: ghcr.io/otelping/otelping-probe:latest
+    container_name: otelping-probe
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      OTELPING_ENDPOINT: "https://app.otelping.eu"
+      OTELPING_API_KEY: "${OTELPING_API_KEY}"
+      OTELPING_REGION: "docker-lan-eu"
+    volumes:
+      - ./otelping.yaml:/etc/otelping/otelping.yaml:ro
+    command: ["--config", "/etc/otelping/otelping.yaml"]

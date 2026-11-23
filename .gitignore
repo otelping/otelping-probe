@@ -1,0 +1,5 @@
+/otelping-probe
+/dist/
+/otelping.yaml
+*.env
+.DS_Store

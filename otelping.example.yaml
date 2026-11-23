@@ -1,0 +1,36 @@
+# Example configuration for otelping-probe
+# Pushes internal HTTP, TLS, TCP, and DNS health metrics outbound via OpenTelemetry (OTLP/HTTP)
+# Docs & managed EU platform: https://otelping.eu
+
+endpoint: "https://app.otelping.eu"
+api_key: "${OTELPING_API_KEY}"
+region: "eu-corp-vlan-01"
+interval: "10s"
+
+checks:
+  - name: "Internal Payments API"
+    group: "Core-Backend"
+    kind: "http"
+    target: "https://payments.internal.company.eu/healthz"
+    keyword: "ok"
+    timeout: "5s"
+    # Optional custom root CA for internal corporate PKI / HashiCorp Vault PKI:
+    # tls_ca_file: "/etc/otelping/internal-ca.pem"
+
+  - name: "Primary PostgreSQL"
+    group: "Core-Backend"
+    kind: "tcp"
+    target: "tcp://10.20.1.15:5432"
+    interval: "10s"
+
+  - name: "Internal Redis Cache"
+    group: "Core-Backend"
+    kind: "tcp"
+    target: "tcp://10.20.1.25:6379"
+    interval: "10s"
+
+  - name: "Split-Horizon Internal DNS"
+    kind: "dns"
+    target: "dns://payments.internal.company.eu"
+    dns_server: "10.20.0.53:53"
+    interval: "30s"

@@ -1,0 +1,21 @@
+[Unit]
+Description=OTelPing Internal OpenTelemetry Synthetic Probe
+Documentation=https://github.com/otelping/otelping-probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=-/etc/otelping/otelping.env
+ExecStart=/usr/local/bin/otelping-probe --config /etc/otelping/otelping.yaml
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otelping-probe
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otelping-probe
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otelping-probe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otelping-probe
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: ghcr.io/otelping/otelping-probe:latest
+          args: ["--config", "/etc/otelping/otelping.yaml"]
+          env:
+            - name: OTELPING_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: otelping-secret
+                  key: api-key
+            - name: OTELPING_REGION
+              value: "k8s-cluster-eu"
+          resources:
+            requests:
+              cpu: 15m
+              memory: 24Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelping
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otelping-probe-config

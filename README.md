@@ -79,6 +79,12 @@ Each check emits a `ResourceMetrics` entry (`service.name`, `service.group`, `pr
 | `http.ttfb.duration` | Gauge (Double) | `ms` | Time to first response byte |
 | `tls.cert.days_remaining` | Gauge (Int) | `d` | Days until leaf X.509 certificate expires |
 
+## Related European Platforms
+
+- **[OTelPing (`otelping.eu`)](https://otelping.eu)**: 10-second European web, load-balancer, DNS, and cron uptime monitoring with native OpenTelemetry (`EUR 39/mo`).
+- **[InferPing (`inferping.eu`)](https://inferping.eu)** & **[`inferping-probe`](https://github.com/inferping/inferping-probe)**: 10-second European AI gateway, LLM edge latency, and `#mcp-gate` Model Context Protocol security monitoring (`EUR 39/mo`).
+- **[Vallocor (`vallocor.eu`)](https://vallocor.eu)**: Independent European cybersecurity watchpost (`Outpost` / `Sentinel` / `Bastion`) and on-site `Vallocor Pulse` sensor alongside SMEs and their IT partners.
+
 ## License
 
-Apache License 2.0 - Built in the Netherlands (EU) by **[OTelPing](https://otelping.eu)**.
+Apache License 2.0 - Built in the Netherlands (EU) by **[OTelPing](https://otelping.eu)** (Vallocor Security Engineering / GREYPIXEL ICT).
